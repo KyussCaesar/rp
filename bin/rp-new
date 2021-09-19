@@ -52,12 +52,12 @@ then
   rp-init
 fi
 
-for arg in "${argv[@]}"
+for env in "${argv[@]}"
 do
   env_dir=.rp/env/"$env"
   if [ -a "$env_dir" ]
   then
-    msg "Directory for '$arg' ($env_dir) already exists, skipping."
+    msg "Directory for '$env' ($env_dir) already exists, skipping."
     continue
   fi
 
@@ -80,7 +80,6 @@ USER root
 COPY sysadmin.sh .
 RUN ./sysadmin.sh
 USER \$USER
-
 EOF
 
   cat >"$env_dir"/usersetup.sh <<EOF
@@ -91,6 +90,8 @@ set -euo pipefail
 groupadd -o -g "\$GID" host
 useradd -o -u "\$UID" -g "\$GID" -s /bin/bash -m "\$USER"
 EOF
+
+  chmod +x "$env_dir"/usersetup.sh
 
   cat >"$env_dir"/sysadmin.sh <<EOF
 #!/bin/bash
@@ -126,7 +127,11 @@ then
 else
   echo >&2 "No apt-get packages to install."
 fi
-
 EOF
+
+  chmod +x "$env_dir"/sysadmin.sh
+
+  cat >.rp/bin/rp <~/github/rp/rp
+  chmod +x .rp/bin/rp
 
 done
