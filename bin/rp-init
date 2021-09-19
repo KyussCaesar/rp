@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source ~/github/home/utils.bash
+
+flag_help=no
+flag_trace=no
+
+argv=()
+while [ $# -ne 0 ]
+do
+  case "$1" in
+    -h | --help) #HELP: (flag) Show this help and exit.
+      shift
+      flag_help=yes
+      ;;
+
+    -x) #HELP: (flag) Enable debug tracing.
+      shift
+      flag_trace=yes
+      ;;
+
+    --) #HELP: (flag) Halt option processing.
+      shift
+      argv+=("$@")
+      break
+      ;;
+
+    -* | --*)
+      bail 1 "Received unknown option '$1'."
+      ;;
+
+    *)
+      argv+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "$flag_trace" = yes ]
+then
+  set -x
+fi
+
+if [ "$flag_help" = yes ]
+then
+  showhelp '[ OPTIONS ]' '[ ARGS ... ]'
+  exit 1
+fi
+
+if [ ${#argv[@]} -ne 0 ]
+then
+  bail 1 "Received extra arguments: ${argv[@]}"
+fi
+
+mkdir -p .rp/{bin,env}
+cat >.rp/.gitignore <<EOF
+db
+EOF
+

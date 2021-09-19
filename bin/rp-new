@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source ~/github/home/utils.bash
+
+flag_help=no
+flag_trace=no
+
+argv=()
+while [ $# -ne 0 ]
+do
+  case "$1" in
+    -h | --help) #HELP: (flag) Show this help and exit.
+      shift
+      flag_help=yes
+      ;;
+
+    -x) #HELP: (flag) Enable debug tracing.
+      shift
+      flag_trace=yes
+      ;;
+
+    --) #HELP: (flag) Halt option processing.
+      shift
+      argv+=("$@")
+      break
+      ;;
+
+    -* | --*)
+      bail 1 "Received unknown option '$1'."
+      ;;
+
+    *)
+      argv+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "$flag_trace" = yes ]
+then
+  set -x
+fi
+
+if [ "$flag_help" = yes ]
+then
+  showhelp '[ OPTIONS ]' '[ ARGS ... ]'
+  exit 1
+fi
+
+if ! [ -d .rp ]
+then
+  rp-init
+fi
+
+for arg in "${argv[@]}"
+do
+  env_dir=.rp/env/"$env"
+  if [ -a "$env_dir" ]
+  then
+    msg "Directory for '$arg' ($env_dir) already exists, skipping."
+    continue
+  fi
+
+  mkdir -p "$env_dir"
+  dockerfile="$env_dir"/Dockerfile
+  cat >"$dockerfile" <<EOF
+FROM debian:stable-slim
+
+ARG WORKDIR
+WORKDIR \$WORKDIR
+
+ARG UID
+ARG GID
+ARG USER
+COPY usersetup.sh .
+RUN ./usersetup.sh
+USER \$USER
+
+USER root
+COPY sysadmin.sh .
+RUN ./sysadmin.sh
+USER \$USER
+
+EOF
+
+  cat >"$env_dir"/usersetup.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+
+# users and groups
+groupadd -o -g "\$GID" host
+useradd -o -u "\$UID" -g "\$GID" -s /bin/bash -m "\$USER"
+EOF
+
+  cat >"$env_dir"/sysadmin.sh <<EOF
+#!/bin/bash
+set -euo pipefail
+
+trace () {
+  set -x
+  "\$@"
+  set +x
+}
+
+export DEBIAN_FRONTEND=noninteractive
+
+pkgs=(
+)
+
+if [ \${#pkgs[@]} -ne 0 ]
+then
+  # update the package lists
+  apt-get update
+
+  # upgrade all installed packages
+  # the base is debian, if your shit breaks it means *you* have a problem
+  apt-get upgrade
+
+  trace apt-get --yes --no-install-recommends install "\${pkgs[@]}"
+
+  apt-get --yes autoremove
+  apt-get --yes clean autoclean
+
+  rm -rf /var/lib/apt/lists/*
+
+else
+  echo >&2 "No apt-get packages to install."
+fi
+
+EOF
+
+done
